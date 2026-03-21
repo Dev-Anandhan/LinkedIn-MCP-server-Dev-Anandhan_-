@@ -114,8 +114,8 @@ async def _handle_login(container: Container) -> None:
     """Handle --login command."""
     profile_path = container.auth.get_profile_path()
 
-    print("\n  LinkedIn MCP Server — Login")
-    print("  ─" * 20)
+    print("\n  LinkedIn MCP Server - Login")
+    print("  " + "-" * 40)
     print(f"  Profile: {profile_path}\n")
 
     try:

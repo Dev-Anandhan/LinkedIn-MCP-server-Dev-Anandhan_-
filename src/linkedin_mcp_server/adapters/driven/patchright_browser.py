@@ -21,6 +21,7 @@ from patchright.async_api import (
 from linkedin_mcp_server.domain.exceptions import (
     NetworkError,
     RateLimitError,
+    ScrapingError,
     SessionExpiredError,
 )
 from linkedin_mcp_server.domain.value_objects import BrowserConfig, PageContent
@@ -312,8 +313,8 @@ class PatchrightBrowserAdapter(BrowserPort):
 
         logger.info("Browser closed")
 
-    async def create_post(self, content: str) -> None:
-        """Create a new post on the user's feed."""
+    async def create_post(self, content: str, image_path: str | None = None) -> None:
+        """Create a new post on the user's feed, optionally with an image."""
         page = await self._ensure_browser()
         await self.navigate("https://www.linkedin.com/feed/")
         await self._detect_rate_limit(page)
@@ -323,25 +324,62 @@ class PatchrightBrowserAdapter(BrowserPort):
             # Click "Start a post"
             trigger = page.locator('.share-box-feed-entry__trigger')
             await trigger.click(timeout=self._config.default_timeout)
-            
+
             # Wait for modal
             await page.wait_for_selector('div[role="dialog"]', timeout=self._config.default_timeout)
-            
+
             # The editor is usually contenteditable
             editor = page.locator('.ql-editor')
             await editor.click(timeout=5000)
             await page.keyboard.insert_text(content)
-            
+
+            # Upload image if provided
+            if image_path:
+                await self._upload_post_image(page, image_path)
+
             # Click Post
             post_btn = page.locator('button.share-actions__primary-action')
             await post_btn.click(timeout=5000)
-            
+
             # Wait for dialog to disappear or success toast
-            await page.wait_for_selector('div[role="dialog"]', state='hidden', timeout=10000)
+            await page.wait_for_selector('div[role="dialog"]', state='hidden', timeout=15000)
             logger.info("Successfully created LinkedIn post.")
         except Exception as e:
             logger.error("Failed to create post: %s", e)
             raise ScrapingError(f"Failed to create post. UI might have changed: {e}") from e
+
+    async def _upload_post_image(self, page: Page, image_path: str) -> None:
+        """Upload an image to the LinkedIn post dialog.
+
+        Uses Playwright's FileChooser API to intercept the native file dialog
+        and set the file programmatically.
+        """
+        # LinkedIn's post dialog has a media toolbar with an image/photo button
+        media_btn = page.locator(
+            'button[aria-label="Add a photo"], '
+            'button[aria-label="Add media"], '
+            'button[aria-label="Add a photo or video"]'
+        )
+
+        # Use expect_file_chooser to intercept the native file dialog
+        async with page.expect_file_chooser(timeout=self._config.default_timeout) as fc_info:
+            await media_btn.click(timeout=5000)
+
+        file_chooser = await fc_info.value
+        await file_chooser.set_files(image_path)
+
+        # Wait for the image preview/thumbnail to appear in the dialog
+        await page.wait_for_selector(
+            'div[role="dialog"] img[class*="share-media"], '
+            'div[role="dialog"] .share-box-image-preview, '
+            'div[role="dialog"] .media-preview, '
+            'div[role="dialog"] img[src*="blob:"], '
+            'div[role="dialog"] .share-promoted-detour-feed-update-v2__image-container',
+            timeout=15000,
+        )
+        logger.info("Image uploaded successfully: %s", image_path)
+        # Small delay for upload processing
+        await asyncio.sleep(1)
 
     async def apply_for_job(self, job_id: str) -> bool:
         """Attempt to Easy Apply for a job. Returns True if successful, False if blocked by manual input."""

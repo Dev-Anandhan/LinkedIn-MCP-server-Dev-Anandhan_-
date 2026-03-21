@@ -74,8 +74,13 @@ class BrowserPort(ABC):
         ...
 
     @abstractmethod
-    async def create_post(self, content: str) -> None:
-        """Create a new post on the user's feed."""
+    async def create_post(self, content: str, image_path: str | None = None) -> None:
+        """Create a new post on the user's feed.
+
+        Args:
+            content: The text content of the post.
+            image_path: Optional absolute path to an image file to attach.
+        """
         ...
 
     @abstractmethod
