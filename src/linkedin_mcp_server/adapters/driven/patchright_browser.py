@@ -367,6 +367,8 @@ class PatchrightBrowserAdapter(BrowserPort):
                 'div[role="dialog"]', state='hidden', timeout=15000
             )
             logger.info("Successfully created LinkedIn post.")
+        except (SessionExpiredError, RateLimitError):
+            raise
         except Exception as e:
             logger.error("Failed to create post: %s", e)
             raise ScrapingError(
