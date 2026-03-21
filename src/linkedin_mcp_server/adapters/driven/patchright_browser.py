@@ -320,16 +320,33 @@ class PatchrightBrowserAdapter(BrowserPort):
         await self._detect_rate_limit(page)
         await self._handle_modal_close(page)
 
+        # Give the feed time to fully render
+        await asyncio.sleep(2)
+
         try:
-            # Click "Start a post"
-            trigger = page.locator('.share-box-feed-entry__trigger')
-            await trigger.click(timeout=self._config.default_timeout)
+            # Click "Start a post" — multiple fallback selectors
+            trigger = page.locator(
+                '.share-box-feed-entry__trigger, '
+                '.share-box-feed-entry-v2__trigger, '
+                'button[data-control-name="sharebox-start-post"], '
+                'div.share-box-feed-entry__wrapper button, '
+                'button:has-text("Start a post")'
+            ).first
+            await trigger.click(timeout=15000)
 
-            # Wait for modal
-            await page.wait_for_selector('div[role="dialog"]', timeout=self._config.default_timeout)
+            # Wait for post creation modal
+            await page.wait_for_selector(
+                'div[role="dialog"]', timeout=self._config.default_timeout
+            )
+            await asyncio.sleep(1)
 
-            # The editor is usually contenteditable
-            editor = page.locator('.ql-editor')
+            # Click into the editor and type content — multiple fallback selectors
+            editor = page.locator(
+                '.ql-editor, '
+                'div[role="textbox"][aria-multiline="true"], '
+                'div[contenteditable="true"][role="textbox"], '
+                'div[contenteditable="true"][data-placeholder]'
+            ).first
             await editor.click(timeout=5000)
             await page.keyboard.insert_text(content)
 
@@ -337,16 +354,24 @@ class PatchrightBrowserAdapter(BrowserPort):
             if image_path:
                 await self._upload_post_image(page, image_path)
 
-            # Click Post
-            post_btn = page.locator('button.share-actions__primary-action')
+            # Click Post button — multiple fallback selectors
+            post_btn = page.locator(
+                'button.share-actions__primary-action, '
+                'button[data-control-name="sharebox-post"], '
+                'div[role="dialog"] button:has-text("Post")'
+            ).first
             await post_btn.click(timeout=5000)
 
             # Wait for dialog to disappear or success toast
-            await page.wait_for_selector('div[role="dialog"]', state='hidden', timeout=15000)
+            await page.wait_for_selector(
+                'div[role="dialog"]', state='hidden', timeout=15000
+            )
             logger.info("Successfully created LinkedIn post.")
         except Exception as e:
             logger.error("Failed to create post: %s", e)
-            raise ScrapingError(f"Failed to create post. UI might have changed: {e}") from e
+            raise ScrapingError(
+                f"Failed to create post. UI might have changed: {e}"
+            ) from e
 
     async def _upload_post_image(self, page: Page, image_path: str) -> None:
         """Upload an image to the LinkedIn post dialog.
@@ -354,12 +379,15 @@ class PatchrightBrowserAdapter(BrowserPort):
         Uses Playwright's FileChooser API to intercept the native file dialog
         and set the file programmatically.
         """
-        # LinkedIn's post dialog has a media toolbar with an image/photo button
+        # LinkedIn's post dialog has a media toolbar — multiple fallback selectors
         media_btn = page.locator(
             'button[aria-label="Add a photo"], '
             'button[aria-label="Add media"], '
-            'button[aria-label="Add a photo or video"]'
-        )
+            'button[aria-label="Add a photo or video"], '
+            'button[aria-label="Add media to your post"], '
+            '.share-media-button, '
+            'div[role="dialog"] button:has-text("Photo")'
+        ).first
 
         # Use expect_file_chooser to intercept the native file dialog
         async with page.expect_file_chooser(timeout=self._config.default_timeout) as fc_info:
@@ -374,7 +402,8 @@ class PatchrightBrowserAdapter(BrowserPort):
             'div[role="dialog"] .share-box-image-preview, '
             'div[role="dialog"] .media-preview, '
             'div[role="dialog"] img[src*="blob:"], '
-            'div[role="dialog"] .share-promoted-detour-feed-update-v2__image-container',
+            'div[role="dialog"] .share-promoted-detour-feed-update-v2__image-container, '
+            'div[role="dialog"] img[alt]',
             timeout=15000,
         )
         logger.info("Image uploaded successfully: %s", image_path)
