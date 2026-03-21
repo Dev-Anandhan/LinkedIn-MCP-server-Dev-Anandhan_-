@@ -326,8 +326,19 @@ class PatchrightBrowserAdapter(BrowserPort):
 
         try:
             # Check if the modal opened automatically from ?shareActive=true
-            modal = page.locator('div[role="dialog"]')
-            if not await modal.is_visible(timeout=3000):
+            modal_opened = False
+            try:
+                # Wait for the specific artdeco-modal rather than generic dialog
+                await page.wait_for_selector(
+                    'div.artdeco-modal, div.share-box-v2__modal, div[role="dialog"]', 
+                    state='visible', 
+                    timeout=5000
+                )
+                modal_opened = True
+            except Exception:
+                pass
+
+            if not modal_opened:
                 logger.debug("Modal didn't open automatically, falling back to trigger click")
                 # Click "Start a post" — multiple fallback selectors
                 trigger = page.locator(
@@ -341,7 +352,9 @@ class PatchrightBrowserAdapter(BrowserPort):
 
                 # Wait for post creation modal
                 await page.wait_for_selector(
-                    'div[role="dialog"]', timeout=self._config.default_timeout
+                    'div.artdeco-modal, div.share-box-v2__modal, div[role="dialog"]', 
+                    state='visible',
+                    timeout=self._config.default_timeout
                 )
                 
             await asyncio.sleep(1)
@@ -370,7 +383,9 @@ class PatchrightBrowserAdapter(BrowserPort):
 
             # Wait for dialog to disappear or success toast
             await page.wait_for_selector(
-                'div[role="dialog"]', state='hidden', timeout=15000
+                'div.artdeco-modal, div.share-box-v2__modal, div[role="dialog"]', 
+                state='hidden', 
+                timeout=15000
             )
             logger.info("Successfully created LinkedIn post.")
         except (SessionExpiredError, RateLimitError):
