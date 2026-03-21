@@ -16,7 +16,7 @@ from linkedin_mcp_server.ports.browser import BrowserPort
 
 logger = logging.getLogger(__name__)
 
-_LOGIN_TIMEOUT_S = 300  # 5 minutes to complete login
+_LOGIN_TIMEOUT_S = 600  # 10 minutes to complete login
 _LOGIN_POLL_INTERVAL_S = 2  # Check every 2 seconds
 _COOKIE_FLUSH_DELAY_S = 3  # Wait for cookies to persist to disk
 

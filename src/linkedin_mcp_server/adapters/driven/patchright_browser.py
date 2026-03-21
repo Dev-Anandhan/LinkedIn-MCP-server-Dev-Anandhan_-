@@ -316,28 +316,34 @@ class PatchrightBrowserAdapter(BrowserPort):
     async def create_post(self, content: str, image_path: str | None = None) -> None:
         """Create a new post on the user's feed, optionally with an image."""
         page = await self._ensure_browser()
-        await self.navigate("https://www.linkedin.com/feed/")
+        # Navigate directly to the active share modal URL to bypass brittle UI selectors
+        await self.navigate("https://www.linkedin.com/feed/?shareActive=true")
         await self._detect_rate_limit(page)
         await self._handle_modal_close(page)
 
-        # Give the feed time to fully render
-        await asyncio.sleep(2)
+        # Give the feed and the modal time to fully render
+        await asyncio.sleep(4)
 
         try:
-            # Click "Start a post" — multiple fallback selectors
-            trigger = page.locator(
-                '.share-box-feed-entry__trigger, '
-                '.share-box-feed-entry-v2__trigger, '
-                'button[data-control-name="sharebox-start-post"], '
-                'div.share-box-feed-entry__wrapper button, '
-                'button:has-text("Start a post")'
-            ).first
-            await trigger.click(timeout=15000)
+            # Check if the modal opened automatically from ?shareActive=true
+            modal = page.locator('div[role="dialog"]')
+            if not await modal.is_visible(timeout=3000):
+                logger.debug("Modal didn't open automatically, falling back to trigger click")
+                # Click "Start a post" — multiple fallback selectors
+                trigger = page.locator(
+                    '.share-box-feed-entry__trigger, '
+                    '.share-box-feed-entry-v2__trigger, '
+                    'button[data-control-name="sharebox-start-post"], '
+                    'div.share-box-feed-entry__wrapper button, '
+                    'button:has-text("Start a post")'
+                ).first
+                await trigger.click(timeout=10000)
 
-            # Wait for post creation modal
-            await page.wait_for_selector(
-                'div[role="dialog"]', timeout=self._config.default_timeout
-            )
+                # Wait for post creation modal
+                await page.wait_for_selector(
+                    'div[role="dialog"]', timeout=self._config.default_timeout
+                )
+                
             await asyncio.sleep(1)
 
             # Click into the editor and type content — multiple fallback selectors
