@@ -107,9 +107,16 @@ class ProfileAuthAdapter(AuthPort):
         # Layer 2: Cookie pre-check (fast, no network)
         cookie_ok = await self._check_session_cookie()
         if not cookie_ok:
-            logger.debug("Auth failed — session cookie missing or expired")
-            self._update_cache(False)
-            return False
+            # Headless Chrome on Windows often fails to decrypt DPAPI cookies 
+            # saved by headed Chrome. Fall back to importing the unencrypted cookies.json
+            logger.debug("Session cookie missing, attempting to import from cookies.json")
+            if await self.import_cookies():
+                cookie_ok = await self._check_session_cookie()
+                
+            if not cookie_ok:
+                logger.debug("Auth failed — session cookie missing or expired")
+                self._update_cache(False)
+                return False
 
         # Layer 3: Full navigation check (slow but definitive)
         try:
@@ -189,6 +196,9 @@ class ProfileAuthAdapter(AuthPort):
                 "Login appeared to succeed but session verification failed. Please try again."
             )
 
+        # Export cookies for headless mode to use (bypasses Windows DPAPI issues)
+        await self.export_cookies()
+
         print("  Login detected and verified! Session saved.\n")
         return True
 
@@ -218,7 +228,10 @@ class ProfileAuthAdapter(AuthPort):
                 encoding="utf-8",
             )
             # Restrict file permissions — cookies are sensitive auth material
-            export_path.chmod(0o600)
+            try:
+                export_path.chmod(0o600)
+            except Exception as e:
+                logger.debug("Could not set strict permissions on cookie file (Windows): %s", e)
             logger.info("Exported %d cookies to %s", len(linkedin_cookies), export_path)
             return True
         except Exception as e:
