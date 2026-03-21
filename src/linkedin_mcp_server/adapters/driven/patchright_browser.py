@@ -123,7 +123,7 @@ class PatchrightBrowserAdapter(BrowserPort):
 
         pages = self._context.pages
         self._page = pages[0] if pages else await self._context.new_page()
-        self._page.set_default_timeout(self._config.default_timeout)
+        self._page.set_default_timeout(30000) # Increased to 30s for better reliability in headless mode
 
         logger.info("Browser started with profile: %s", user_data_dir)
         return self._page
@@ -340,15 +340,16 @@ class PatchrightBrowserAdapter(BrowserPort):
 
             if not modal_opened:
                 logger.debug("Modal didn't open automatically, falling back to trigger click")
-                # Click "Start a post" — multiple fallback selectors
+                # Click "Start a post" — multiple fallback selectors including new div-based triggers
                 trigger = page.locator(
+                    'div[role="button"]:has-text("Start a post"), '
+                    'button:has-text("Start a post"), '
                     '.share-box-feed-entry__trigger, '
                     '.share-box-feed-entry-v2__trigger, '
                     'button[data-control-name="sharebox-start-post"], '
-                    'div.share-box-feed-entry__wrapper button, '
-                    'button:has-text("Start a post")'
+                    'div.share-box-feed-entry__wrapper button'
                 ).first
-                await trigger.click(timeout=10000)
+                await trigger.click(timeout=15000)
 
                 # Wait for post creation modal
                 await page.wait_for_selector(
@@ -362,11 +363,13 @@ class PatchrightBrowserAdapter(BrowserPort):
             # Click into the editor and type content — multiple fallback selectors
             editor = page.locator(
                 '.ql-editor, '
+                'div[role="textbox"], '
+                'div[contenteditable="true"], '
                 'div[role="textbox"][aria-multiline="true"], '
                 'div[contenteditable="true"][role="textbox"], '
                 'div[contenteditable="true"][data-placeholder]'
             ).first
-            await editor.click(timeout=5000)
+            await editor.click(timeout=8000)
             await page.keyboard.insert_text(content)
 
             # Upload image if provided
@@ -375,11 +378,13 @@ class PatchrightBrowserAdapter(BrowserPort):
 
             # Click Post button — multiple fallback selectors
             post_btn = page.locator(
+                'button:has-text("Post"), '
                 'button.share-actions__primary-action, '
                 'button[data-control-name="sharebox-post"], '
-                'div[role="dialog"] button:has-text("Post")'
+                'div[role="dialog"] button:has-text("Post"), '
+                '.artdeco-button--primary:has-text("Post")'
             ).first
-            await post_btn.click(timeout=5000)
+            await post_btn.click(timeout=8000)
 
             # Wait for dialog to disappear or success toast
             await page.wait_for_selector(
