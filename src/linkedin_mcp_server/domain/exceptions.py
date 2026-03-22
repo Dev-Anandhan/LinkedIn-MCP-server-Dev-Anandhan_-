@@ -50,6 +50,10 @@ class ProfileNotFoundError(ScrapingError):
     """Profile/page returned 404."""
 
 
+class LinkScrapingError(ScrapingError):
+    """LinkedIn crawler would fail to scrape this link (meta tags, bot protection, etc)."""
+
+
 # ── Infrastructure ────────────────────────────────────────────────────────────
 
 

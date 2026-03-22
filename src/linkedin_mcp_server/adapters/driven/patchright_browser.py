@@ -95,8 +95,8 @@ class PatchrightBrowserAdapter(BrowserPort):
 
         user_data_dir = str(Path(self._config.user_data_dir).expanduser())
 
-        # Use configured user agent or pick a random realistic one
-        user_agent = self._config.user_agent or random.choice(_USER_AGENT_POOL)
+        # Use configured user agent or pick a consistent realistic one
+        user_agent = self._config.user_agent or _USER_AGENT_POOL[0]
         logger.info("Using user agent: %s", user_agent)
 
         launch_args: dict = {
@@ -349,48 +349,68 @@ class PatchrightBrowserAdapter(BrowserPort):
                     'button[data-control-name="sharebox-start-post"], '
                     'div.share-box-feed-entry__wrapper button'
                 ).first
-                await trigger.click(timeout=15000)
+                
+                # Note: LinkedIn sometimes has a transparent #interop-outlet overlay
+                # Use force=True to bypass pointer interception
+                await trigger.click(timeout=15000, force=True)
 
                 # Wait for post creation modal
                 await page.wait_for_selector(
-                    'div.artdeco-modal, div.share-box-v2__modal, div[role="dialog"]', 
+                    'div.share-box-v2__modal:visible, '
+                    'div[role="dialog"]:has(.share-box-v2__content):visible, '
+                    '.artdeco-modal:visible', 
                     state='visible',
-                    timeout=self._config.default_timeout
+                    timeout=20000
                 )
                 
             await asyncio.sleep(1)
 
-            # Click into the editor and type content — multiple fallback selectors
-            editor = page.locator(
-                '.ql-editor, '
-                'div[role="textbox"], '
-                'div[contenteditable="true"], '
-                'div[role="textbox"][aria-multiline="true"], '
-                'div[contenteditable="true"][role="textbox"], '
-                'div[contenteditable="true"][data-placeholder]'
-            ).first
-            await editor.click(timeout=8000)
-            await page.keyboard.insert_text(content)
-
-            # Upload image if provided
+            # Upload image FIRST if provided 
+            # This prevents LinkedIn's modal transitions from clearing the editor state
             if image_path:
                 await self._upload_post_image(page, image_path)
+                await asyncio.sleep(1)
 
-            # Click Post button — multiple fallback selectors
-            post_btn = page.locator(
-                'button:has-text("Post"), '
-                'button.share-actions__primary-action, '
-                'button[data-control-name="sharebox-post"], '
-                'div[role="dialog"] button:has-text("Post"), '
-                '.artdeco-button--primary:has-text("Post")'
+            # Re-focus into the editor and type content — multiple fallback selectors
+            editor = page.locator(
+                '.ql-editor:visible, '
+                'div[role="textbox"]:visible, '
+                'div[contenteditable="true"]:visible, '
+                'div[role="textbox"][aria-multiline="true"]:visible, '
+                'div[contenteditable="true"][role="textbox"]:visible, '
+                'div[contenteditable="true"][data-placeholder]:visible'
             ).first
-            await post_btn.click(timeout=8000)
+            
+            await editor.click(timeout=10000)
+            # Use insert_text to handle technical characters and preserve formatting
+            await page.keyboard.insert_text(content)
+            await asyncio.sleep(1)
+
+            # Click Post button — multiple fallback selectors with exact match preference
+            post_btn = page.locator(
+                'button.share-actions__primary-action:visible, '
+                'button:text("Post"):visible, '
+                'button[data-control-name="sharebox-post"]:visible, '
+                'div[role="dialog"] footer button:has-text("Post"):visible, '
+                '.artdeco-button--primary:has-text("Post"):visible'
+            ).first
+
+            # Wait for button to be enabled (image processing can disable it briefly)
+            await post_btn.wait_for(state="visible", timeout=10000)
+            for _ in range(20): # Up to 10s wait
+                if not await post_btn.is_disabled():
+                    break
+                logger.info("Waiting for 'Post' button to be enabled after media processing...")
+                await asyncio.sleep(0.5)
+
+            await post_btn.click(timeout=15000)
 
             # Wait for dialog to disappear or success toast
+            # Increased timeout as image posts take longer to process/submit
             await page.wait_for_selector(
                 'div.artdeco-modal, div.share-box-v2__modal, div[role="dialog"]', 
                 state='hidden', 
-                timeout=15000
+                timeout=30000
             )
             logger.info("Successfully created LinkedIn post.")
         except (SessionExpiredError, RateLimitError):
@@ -414,6 +434,7 @@ class PatchrightBrowserAdapter(BrowserPort):
             'button[aria-label="Add a photo or video"], '
             'button[aria-label="Add media to your post"], '
             '.share-media-button, '
+            'button:has-text("Photo"), '
             'div[role="dialog"] button:has-text("Photo")'
         ).first
 
@@ -434,6 +455,22 @@ class PatchrightBrowserAdapter(BrowserPort):
             'div[role="dialog"] img[alt]',
             timeout=15000,
         )
+
+        # After selecting the file, LinkedIn often shows an editor/cropper modal
+        # We need to click "Next" or "Done" to finalize the selection
+        finish_btn = page.locator(
+            'button.share-box-footer__primary-btn:visible, '
+            'div[role="dialog"] button:has-text("Next"):visible, '
+            'div[role="dialog"] button:has-text("Done"):visible, '
+            'button.share-media-editor__next-button:visible, '
+            'button.share-media-editor__done-button:visible'
+        ).first
+        
+        if await finish_btn.is_visible(timeout=5000):
+            logger.info("Clicking Next/Done in media editor...")
+            await finish_btn.click()
+            await asyncio.sleep(1)
+
         logger.info("Image uploaded successfully: %s", image_path)
         # Small delay for upload processing
         await asyncio.sleep(1)
@@ -504,6 +541,61 @@ class PatchrightBrowserAdapter(BrowserPort):
         except Exception as e:
             logger.error("Error during Easy Apply for job %s: %s", job_id, e)
             return False
+
+    async def check_url_accessibility(self, url: str) -> dict[str, Any]:
+        """Check if a URL is accessible by the LinkedInBot user agent."""
+        # Ensure playwright is started
+        if not self._playwright:
+            self._playwright = await async_playwright().start()
+
+        # LinkedInBot sample user agent
+        ua = "LinkedInBot/1.0 (compatible; Mozilla/5.0; Apache-HttpClient +http://www.linkedin.com)"
+        
+        request_context = await self._playwright.request.new_context(user_agent=ua)
+        try:
+            # Check for localhost/internal URLs
+            if "localhost" in url or "127.0.0.1" in url:
+                return {
+                    "ok": False,
+                    "status": 0,
+                    "error": "Localhost/Private URLs are not accessible by LinkedIn's crawler.",
+                    "is_local": True
+                }
+
+            # LinkedIn crawler uses its own backend, so we simulate it via a headless request
+            response = await request_context.get(url, timeout=10000)
+            status = response.status
+            body = await response.text()
+            
+            # Simple metadata detection
+            lowered_body = body.lower()
+            og_tags = {
+                "title": 'property="og:title"' in lowered_body or "property='og:title'" in lowered_body,
+                "description": 'property="og:description"' in lowered_body or "property='og:description'" in lowered_body,
+                "image": 'property="og:image"' in lowered_body or "property='og:image'" in lowered_body,
+                "url": 'property="og:url"' in lowered_body or "property='og:url'" in lowered_body,
+            }
+            
+            # Bot blocking detection (Cloudflare, etc often return 403/401)
+            is_blocked = status in (401, 403, 429) or "cloudflare" in lowered_body
+            
+            return {
+                "ok": response.ok and not is_blocked,
+                "status": status,
+                "og_tags": og_tags,
+                "is_blocked": is_blocked,
+                "content_preview": body[:1000] if body else "",
+                "headers": dict(response.headers)
+            }
+        except Exception as e:
+            logger.error("Failed to check URL accessibility: %s", e)
+            return {
+                "ok": False,
+                "status": 0,
+                "error": str(e)
+            }
+        finally:
+            await request_context.dispose()
 
     # ── Internal helpers ──────────────────────────────────────────────────────
 

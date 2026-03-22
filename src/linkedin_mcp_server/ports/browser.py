@@ -87,3 +87,11 @@ class BrowserPort(ABC):
     async def apply_for_job(self, job_id: str) -> bool:
         """Attempt to Easy Apply for a job."""
         ...
+
+    @abstractmethod
+    async def check_url_accessibility(self, url: str) -> dict[str, Any]:
+        """Check if a URL is accessible by the LinkedInBot user agent.
+
+        Returns a dictionary with status, headers, and reason for failure if any.
+        """
+        ...

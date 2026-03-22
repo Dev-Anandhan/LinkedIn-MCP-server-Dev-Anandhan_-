@@ -11,6 +11,7 @@ from linkedin_mcp_server.adapters.driving.mcp_tools.job import register_job_tool
 from linkedin_mcp_server.adapters.driving.mcp_tools.person import register_person_tools
 from linkedin_mcp_server.adapters.driving.mcp_tools.session import register_session_tools
 from linkedin_mcp_server.adapters.driving.mcp_tools.post import register_post_tools
+from linkedin_mcp_server.adapters.driving.mcp_tools.diagnostic import register_diagnostic_tools
 from linkedin_mcp_server.container import Container
 
 logger = logging.getLogger(__name__)
@@ -37,5 +38,6 @@ def create_mcp_server(container: Container) -> FastMCP:
     register_job_tools(mcp, container.scrape_job, container.search_jobs, container.apply_job)
     register_session_tools(mcp, container.manage_session)
     register_post_tools(mcp, container.share_post)
+    register_diagnostic_tools(mcp, container.diagnose_link)
 
     return mcp

@@ -14,6 +14,7 @@ from linkedin_mcp_server.application.search_jobs import SearchJobsUseCase
 from linkedin_mcp_server.application.search_people import SearchPeopleUseCase
 from linkedin_mcp_server.application.share_post import SharePostUseCase
 from linkedin_mcp_server.application.apply_job import ApplyJobUseCase
+from linkedin_mcp_server.application.diagnose_link import DiagnoseLinkUseCase
 from linkedin_mcp_server.domain.value_objects import AppConfig
 from linkedin_mcp_server.ports.auth import AuthPort
 from linkedin_mcp_server.ports.browser import BrowserPort
@@ -42,6 +43,7 @@ class Container:
         self._manage_session = ManageSessionUseCase(self._browser, self._auth)
         self._share_post = SharePostUseCase(self._browser, self._auth, debug=debug)
         self._apply_job = ApplyJobUseCase(self._browser, self._auth, debug=debug)
+        self._diagnose_link = DiagnoseLinkUseCase(self._browser)
 
     @property
     def config(self) -> AppConfig:
@@ -86,3 +88,7 @@ class Container:
     @property
     def apply_job(self) -> ApplyJobUseCase:
         return self._apply_job
+
+    @property
+    def diagnose_link(self) -> DiagnoseLinkUseCase:
+        return self._diagnose_link

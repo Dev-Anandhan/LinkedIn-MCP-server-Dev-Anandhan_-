@@ -24,9 +24,7 @@ class SharePostUseCase:
             content: The text content of the post.
             image_path: Optional absolute path to an image to attach.
         """
-        await self._auth.ensure_authenticated()
-
-        # Validate image path if provided
+        # Validate image path if provided early
         if image_path:
             path = Path(image_path)
             if not path.is_file():
@@ -37,7 +35,36 @@ class SharePostUseCase:
                     f"Supported: {', '.join(sorted(_SUPPORTED_IMAGE_EXTENSIONS))}"
                 )
 
-        await self._browser.create_post(content, image_path=image_path)
+        try:
+            # Optimization: Try direct navigation first to save a full page load
+            # BrowserAdapter.navigate will raise SessionExpiredError if we are redirected to login
+            try:
+                await self._browser.navigate("https://www.linkedin.com/feed/?shareActive=true")
+            except Exception:
+                # Fallback: full auth check (imports cookies) and then navigate
+                await self._auth.ensure_authenticated()
+                await self._browser.navigate("https://www.linkedin.com/feed/?shareActive=true")
+
+            await self._browser.create_post(content, image_path=image_path)
+        except Exception as e:
+            # If a post fails and contains a URL, it might be due to LinkedIn's crawler
+            if "http" in content or "www." in content:
+                from linkedin_mcp_server.application.diagnose_link import DiagnoseLinkUseCase
+                urls = DiagnoseLinkUseCase.extract_urls(content)
+                if urls:
+                    hint = (
+                        "\n\nTIP: This post contains links. If the 'Post' button was disabled "
+                        "or a preview error appeared, try running 'diagnose_link' with "
+                        f"one of these URLs: {', '.join(urls)}"
+                    )
+                    # Re-raise with the hint appended to the message
+                    if hasattr(e, "message"):
+                        e.message += hint # type: ignore
+                    else:
+                        header = f"{e}"
+                        raise type(e)(f"{header}{hint}") from e
+            raise
+
         message = "Post shared successfully"
         if image_path:
             message += " with image"

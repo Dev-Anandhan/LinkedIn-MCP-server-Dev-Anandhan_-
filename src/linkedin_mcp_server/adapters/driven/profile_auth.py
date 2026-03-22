@@ -121,6 +121,14 @@ class ProfileAuthAdapter(AuthPort):
         # Layer 3: Full navigation check (slow but definitive)
         try:
             nav_ok = await self._check_via_navigation()
+            
+            if not nav_ok:
+                # If navigation fails, the cookies in the persistent profile might be corrupted (DPAPI)
+                # or stale. Try importing the unencrypted backup before giving up.
+                logger.debug("Initial navigation check failed, attempting cookie import/retry")
+                if await self.import_cookies():
+                    nav_ok = await self._check_via_navigation()
+            
             self._update_cache(nav_ok, nav_validated=True)
             return nav_ok
         except Exception as e:
@@ -246,9 +254,26 @@ class ProfileAuthAdapter(AuthPort):
             return False
 
         try:
+            # Aggressive DPAPI bypass: try to remove the encrypted on-disk cookies file
+            # to prevent it from overriding our injected unencrypted cookies.
+            # They are usually in Default/Network/Cookies or just Cookies.
+            profile_dir = self.get_profile_path()
+            cookie_file_paths = [
+                profile_dir / "Default" / "Network" / "Cookies",
+                profile_dir / "Default" / "Cookies",
+                profile_dir / "Cookies",
+            ]
+            for path in cookie_file_paths:
+                if path.exists():
+                    try:
+                        path.unlink()
+                        logger.debug("Removed encrypted on-disk cookie file: %s", path)
+                    except Exception as e:
+                        logger.debug("Could not remove cookie file (likely in use): %s", e)
+
             raw = import_path.read_text(encoding="utf-8")
             cookies = json.loads(raw)
-
+            # ... (rest of the existing method)
             if not isinstance(cookies, list) or not cookies:
                 logger.warning("Cookie file is empty or malformed")
                 return False
