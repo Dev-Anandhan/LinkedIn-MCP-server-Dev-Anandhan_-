@@ -50,14 +50,14 @@ def map_domain_error(exception: Exception, context: str = "") -> NoReturn:
     if isinstance(exception, SessionExpiredError):
         raise ToolError(_format_error(
             "SESSION_EXPIRED",
-            f"{prefix}LinkedIn session expired during operation. Please re-authenticate by running the server with --login.",
+            f"{prefix}LinkedIn session expired. Use the `start_login` tool to log in interactively, then retry.",
             retryable=False
         )) from exception
 
     if isinstance(exception, AuthenticationError):
         raise ToolError(_format_error(
             "AUTH_REQUIRED",
-            f"{prefix}Authentication required. Please run the server with --login to authenticate first.",
+            f"{prefix}Authentication required. Use the `start_login` tool to log in interactively, then retry.",
             retryable=False
         )) from exception
 
