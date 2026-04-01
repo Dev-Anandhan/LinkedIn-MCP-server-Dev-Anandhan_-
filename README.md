@@ -90,7 +90,7 @@ All tools utilize a strict JSON error schema to ensure the LLM handles failures 
 ### 1. Clone and install
 
 ```bash
-git clone https://github.com/eliasbiondo/linkedin-mcp-server.git
+git clone https://github.com/[Your GitHub Username]/linkedin-mcp-server.git
 cd linkedin-mcp-server
 uv sync
 ```

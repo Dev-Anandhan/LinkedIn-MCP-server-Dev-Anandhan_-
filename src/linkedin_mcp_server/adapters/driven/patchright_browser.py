@@ -321,49 +321,71 @@ class PatchrightBrowserAdapter(BrowserPort):
         await self._detect_rate_limit(page)
         await self._handle_modal_close(page)
 
-        # Give the feed and the modal time to fully render
-        await asyncio.sleep(4)
+        # Give the feed and the modal ample time to fully render, especially on cold starts
+        await asyncio.sleep(10)
+
+        trigger_selectors = [
+            'div[role="button"]:has-text("Start a post")',
+            'button:has-text("Start a post")',
+            '.share-box-feed-entry__trigger',
+            '.share-box-feed-entry-v2__trigger',
+            'button[data-control-name="sharebox-start-post"]',
+            'div.share-box-feed-entry__wrapper button'
+        ]
 
         try:
             # Check if the modal opened automatically from ?shareActive=true
             modal_opened = False
             try:
-                # Wait for the specific artdeco-modal rather than generic dialog
+                # Wait for the specific artdeco-modal — intensified wait for slow loads
                 await page.wait_for_selector(
                     'div.artdeco-modal, div.share-box-v2__modal, div[role="dialog"]', 
                     state='visible', 
-                    timeout=5000
+                    timeout=15000
                 )
                 modal_opened = True
+                logger.info("Post modal opened automatically via URL parameter.")
             except Exception:
+                logger.debug("Modal didn't open automatically, checking for trigger...")
                 pass
 
             if not modal_opened:
-                logger.debug("Modal didn't open automatically, falling back to trigger click")
-                # Click "Start a post" — multiple fallback selectors including new div-based triggers
-                trigger = page.locator(
-                    'div[role="button"]:has-text("Start a post"), '
-                    'button:has-text("Start a post"), '
-                    '.share-box-feed-entry__trigger, '
-                    '.share-box-feed-entry-v2__trigger, '
-                    'button[data-control-name="sharebox-start-post"], '
-                    'div.share-box-feed-entry__wrapper button'
-                ).first
-                
-                # Note: LinkedIn sometimes has a transparent #interop-outlet overlay
-                # Use force=True to bypass pointer interception
-                await trigger.click(timeout=15000, force=True)
+                # Attempt to find and click the trigger with retries
+                for attempt in range(1, 4):
+                    try:
+                        logger.debug("Attempt %d/3: Clicking 'Start a post' trigger...", attempt)
+                        trigger = page.locator(", ".join(trigger_selectors)).first
+                        await trigger.wait_for(state="visible", timeout=15000)
+                        await trigger.click(timeout=10000, force=True)
+                        
+                        # Verify modal opened after click
+                        await page.wait_for_selector(
+                            'div.artdeco-modal, div.share-box-v2__modal, div[role="dialog"]', 
+                            state='visible', 
+                            timeout=10000
+                        )
+                        modal_opened = True
+                        break
+                    except Exception as e:
+                        logger.warning("Trigger click attempt %d failed: %s", attempt, e)
+                        await asyncio.sleep(3)
+                        # Refresh or check if we are still on the feed
+                        if attempt < 3 and "feed" not in page.url:
+                            await page.goto("https://www.linkedin.com/feed/?shareActive=true", wait_until="domcontentloaded")
 
-                # Wait for post creation modal
-                await page.wait_for_selector(
-                    'div.share-box-v2__modal:visible, '
-                    'div[role="dialog"]:has(.share-box-v2__content):visible, '
-                    '.artdeco-modal:visible', 
-                    state='visible',
-                    timeout=20000
-                )
+            if not modal_opened:
+                raise ScrapingError("Could not open post creation modal after multiple attempts.")
+            # Final modal stabilization — handle the loading spinner if present
+            logger.debug("Performing final modal stabilization...")
+            spinner = page.locator('.artdeco-loader, .share-box-v2__loading-box').first
+            if await spinner.count() > 0:
+                logger.debug("Detected loading spinner in modal, waiting for stabilization...")
+                try:
+                    await spinner.wait_for(state='hidden', timeout=15000)
+                except Exception:
+                    logger.warning("Modal spinner didn't disappear within timeout, proceeding anyway")
                 
-            await asyncio.sleep(1)
+            await asyncio.sleep(2)
 
             # Upload image FIRST if provided 
             # This prevents LinkedIn's modal transitions from clearing the editor state
@@ -396,7 +418,8 @@ class PatchrightBrowserAdapter(BrowserPort):
             ).first
 
             # Wait for button to be enabled (image processing can disable it briefly)
-            await post_btn.wait_for(state="visible", timeout=10000)
+            # Increased timeout to 20s for slow media processing on LinkedIn's end
+            await post_btn.wait_for(state="visible", timeout=20000)
             for _ in range(20): # Up to 10s wait
                 if not await post_btn.is_disabled():
                     break
@@ -417,6 +440,16 @@ class PatchrightBrowserAdapter(BrowserPort):
             raise
         except Exception as e:
             logger.error("Failed to create post: %s", e)
+            # PROACTIVE DIAGNOSTIC: Capture screenshot and HTML on failure
+            try:
+                debug_path = "debug_post_failure.png"
+                await page.screenshot(path=debug_path)
+                logger.info("Failure screenshot captured to: %s", debug_path)
+                with open("debug_post_failure.html", "w", encoding="utf-8") as f:
+                    f.write(await page.content())
+            except Exception as capture_e:
+                logger.warning("Failed to capture diagnostic info: %s", capture_e)
+                
             raise ScrapingError(
                 f"Failed to create post. UI might have changed: {e}"
             ) from e

@@ -59,6 +59,15 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Run browser in headless mode (default: true). Use --no-headless to show the browser.",
     )
+
+    # Subcommands
+    subparsers = parser.add_subparsers(dest="command", help="Available commands")
+
+    # Post command
+    post_parser = subparsers.add_parser("post", help="Share a post on LinkedIn")
+    post_parser.add_argument("content", help="The text content of the post")
+    post_parser.add_argument("--image", help="Absolute path to an image to attach")
+
     return parser
 
 
@@ -93,6 +102,10 @@ def main() -> None:
 
     if config.server.status:
         asyncio.run(_handle_status(container))
+        return
+
+    if args.command == "post":
+        asyncio.run(_handle_post(container, args.content, args.image))
         return
 
     # Create and run MCP server
@@ -139,3 +152,19 @@ def _handle_logout(container: Container) -> None:
     """Handle --logout command."""
     result = container.manage_session.logout()
     print(f"\n  {result.message}")
+
+
+async def _handle_post(container: Container, content: str, image_path: str | None) -> None:
+    """Handle 'post' command."""
+    print(f"\n  Sharing post: {content[:50]}...")
+    if image_path:
+        print(f"  Image: {image_path}")
+
+    try:
+        result = await container.share_post.execute(content, image_path)
+        print(f"  Status: {result.get('status', 'Unknown')}")
+        print(f"  Message: {result.get('message', 'No message')}")
+    except Exception as e:
+        print(f"\n  ERROR: {e}")
+    finally:
+        await container.browser.close()

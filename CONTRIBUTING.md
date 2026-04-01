@@ -33,7 +33,7 @@ Thank you for your interest in contributing to **LinkedIn MCP Server**! Whether 
 
 ```bash
 # Fork via GitHub UI, then:
-git clone https://github.com/<your-username>/linkedin-mcp-server.git
+git clone https://github.com/[Your GitHub Username]/linkedin-mcp-server.git
 cd linkedin-mcp-server
 ```
 
@@ -345,7 +345,7 @@ LINKEDIN_USER_DATA_DIR=~/.linkedin-mcp-server/browser-data
 
 ### Reporting Bugs
 
-Open an [issue](https://github.com/eliasbiondo/linkedin-mcp-server/issues) with the following information:
+Open an [issue](https://github.com/[Your GitHub Username]/linkedin-mcp-server/issues) with the following information:
 
 - **Summary**: a clear, one-line description of the bug
 - **Steps to reproduce**: numbered steps to trigger the issue
@@ -356,7 +356,7 @@ Open an [issue](https://github.com/eliasbiondo/linkedin-mcp-server/issues) with 
 
 ### Suggesting Features
 
-Open an [issue](https://github.com/eliasbiondo/linkedin-mcp-server/issues) with:
+Open an [issue](https://github.com/[Your GitHub Username]/linkedin-mcp-server/issues) with:
 
 - A clear description of the feature
 - The use case — *why* it would be valuable
@@ -837,7 +837,7 @@ If you're using a custom Chrome path, set the `LINKEDIN_CHROME_PATH` environment
 
 ## Community
 
-- **Issues:** [github.com/eliasbiondo/linkedin-mcp-server/issues](https://github.com/eliasbiondo/linkedin-mcp-server/issues)
+- **Issues:** [github.com/[Your GitHub Username]/linkedin-mcp-server/issues](https://github.com/[Your GitHub Username]/linkedin-mcp-server/issues)
 - **Discussions:** Use GitHub Issues for questions, ideas, and general discussion
 
 Please be respectful and constructive in all interactions. We're all here to build something useful together.
