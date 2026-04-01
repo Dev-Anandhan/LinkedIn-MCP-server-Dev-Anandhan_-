@@ -1,7 +1,9 @@
 """Diagnostic-related MCP tool registrations."""
 
 from typing import Any
+
 from fastmcp import Context, FastMCP
+
 from linkedin_mcp_server.adapters.driving.error_mapping import map_domain_error
 from linkedin_mcp_server.application.diagnose_link import DiagnoseLinkUseCase
 

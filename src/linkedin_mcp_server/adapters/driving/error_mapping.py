@@ -6,7 +6,7 @@ All domain errors are translated to structured JSON ToolError messages here.
 
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import NoReturn
 
 from fastmcp.exceptions import ToolError
@@ -31,7 +31,7 @@ def _format_error(code: str, message: str, retryable: bool) -> str:
         "error": code,
         "message": message,
         "retryable": retryable,
-        "timestamp": datetime.now(timezone.utc).isoformat()
+        "timestamp": datetime.now(UTC).isoformat()
     })
 
 

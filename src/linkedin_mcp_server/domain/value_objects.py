@@ -34,6 +34,7 @@ class BrowserConfig:
     default_timeout: int = 10000
     chrome_path: str | None = None
     user_data_dir: str = "~/.linkedin-mcp-server/browser-data"
+    debug: bool = False
 
 
 @dataclass(frozen=True)

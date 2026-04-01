@@ -107,12 +107,12 @@ class ProfileAuthAdapter(AuthPort):
         # Layer 2: Cookie pre-check (fast, no network)
         cookie_ok = await self._check_session_cookie()
         if not cookie_ok:
-            # Headless Chrome on Windows often fails to decrypt DPAPI cookies 
+            # Headless Chrome on Windows often fails to decrypt DPAPI cookies
             # saved by headed Chrome. Fall back to importing the unencrypted cookies.json
             logger.debug("Session cookie missing, attempting to import from cookies.json")
             if await self.import_cookies():
                 cookie_ok = await self._check_session_cookie()
-                
+
             if not cookie_ok:
                 logger.debug("Auth failed — session cookie missing or expired")
                 self._update_cache(False)
@@ -121,14 +121,14 @@ class ProfileAuthAdapter(AuthPort):
         # Layer 3: Full navigation check (slow but definitive)
         try:
             nav_ok = await self._check_via_navigation()
-            
+
             if not nav_ok:
                 # If navigation fails, the cookies in the persistent profile might be corrupted (DPAPI)
                 # or stale. Try importing the unencrypted backup before giving up.
                 logger.debug("Initial navigation check failed, attempting cookie import/retry")
                 if await self.import_cookies():
                     nav_ok = await self._check_via_navigation()
-            
+
             self._update_cache(nav_ok, nav_validated=True)
             return nav_ok
         except Exception as e:

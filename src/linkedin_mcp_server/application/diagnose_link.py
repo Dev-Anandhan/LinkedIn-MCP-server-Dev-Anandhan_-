@@ -16,15 +16,15 @@ class DiagnoseLinkUseCase:
 
     async def execute(self, url: str) -> dict[str, Any]:
         """Execute the diagnose link use case.
-        
+
         Args:
             url: The URL to diagnose.
-            
+
         Returns:
             A dictionary containing accessibility status and recommendations.
         """
         result = await self._browser.check_url_accessibility(url)
-        
+
         # Add analysis/recommendations based on the result
         recommendations = []
         if not result.get("ok"):
@@ -48,7 +48,7 @@ class DiagnoseLinkUseCase:
                     f"The URL returned status {result.get('status')}. "
                     "LinkedIn might fail to scrape this content."
                 )
-        
+
         og_tags = result.get("og_tags", {})
         missing = [tag for tag, present in og_tags.items() if not present]
         if missing:
@@ -56,7 +56,7 @@ class DiagnoseLinkUseCase:
                 f"Missing or broken Open Graph tags: {', '.join(missing)}. "
                 "LinkedIn depends heavily on og:title, og:image, and og:description."
             )
-            
+
         if result.get("is_blocked"):
             recommendations.append(
                 "Bot protection detected. LinkedIn's crawler will likely be blocked."

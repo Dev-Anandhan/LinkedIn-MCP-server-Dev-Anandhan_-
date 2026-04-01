@@ -7,11 +7,11 @@ from contextlib import asynccontextmanager
 from fastmcp import FastMCP
 
 from linkedin_mcp_server.adapters.driving.mcp_tools.company import register_company_tools
+from linkedin_mcp_server.adapters.driving.mcp_tools.diagnostic import register_diagnostic_tools
 from linkedin_mcp_server.adapters.driving.mcp_tools.job import register_job_tools
 from linkedin_mcp_server.adapters.driving.mcp_tools.person import register_person_tools
-from linkedin_mcp_server.adapters.driving.mcp_tools.session import register_session_tools
 from linkedin_mcp_server.adapters.driving.mcp_tools.post import register_post_tools
-from linkedin_mcp_server.adapters.driving.mcp_tools.diagnostic import register_diagnostic_tools
+from linkedin_mcp_server.adapters.driving.mcp_tools.session import register_session_tools
 from linkedin_mcp_server.container import Container
 
 logger = logging.getLogger(__name__)

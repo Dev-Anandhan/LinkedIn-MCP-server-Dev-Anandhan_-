@@ -9,9 +9,9 @@ from linkedin_mcp_server.adapters.driving.serialization import (
     serialize_scrape_response,
     serialize_sections,
 )
+from linkedin_mcp_server.application.apply_job import ApplyJobUseCase
 from linkedin_mcp_server.application.scrape_job import ScrapeJobUseCase
 from linkedin_mcp_server.application.search_jobs import SearchJobsUseCase
-from linkedin_mcp_server.application.apply_job import ApplyJobUseCase
 
 
 def register_job_tools(

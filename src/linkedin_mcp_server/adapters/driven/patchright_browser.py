@@ -6,7 +6,6 @@ rate limit detection, and HTML extraction.
 
 import asyncio
 import logging
-import random
 from pathlib import Path
 from typing import Any
 
@@ -339,8 +338,8 @@ class PatchrightBrowserAdapter(BrowserPort):
             try:
                 # Wait for the specific artdeco-modal — intensified wait for slow loads
                 await page.wait_for_selector(
-                    'div.artdeco-modal, div.share-box-v2__modal, div[role="dialog"]', 
-                    state='visible', 
+                    'div.artdeco-modal, div.share-box-v2__modal, div[role="dialog"]',
+                    state='visible',
                     timeout=15000
                 )
                 modal_opened = True
@@ -357,11 +356,11 @@ class PatchrightBrowserAdapter(BrowserPort):
                         trigger = page.locator(", ".join(trigger_selectors)).first
                         await trigger.wait_for(state="visible", timeout=15000)
                         await trigger.click(timeout=10000, force=True)
-                        
+
                         # Verify modal opened after click
                         await page.wait_for_selector(
-                            'div.artdeco-modal, div.share-box-v2__modal, div[role="dialog"]', 
-                            state='visible', 
+                            'div.artdeco-modal, div.share-box-v2__modal, div[role="dialog"]',
+                            state='visible',
                             timeout=10000
                         )
                         modal_opened = True
@@ -384,10 +383,10 @@ class PatchrightBrowserAdapter(BrowserPort):
                     await spinner.wait_for(state='hidden', timeout=15000)
                 except Exception:
                     logger.warning("Modal spinner didn't disappear within timeout, proceeding anyway")
-                
+
             await asyncio.sleep(2)
 
-            # Upload image FIRST if provided 
+            # Upload image FIRST if provided
             # This prevents LinkedIn's modal transitions from clearing the editor state
             if image_path:
                 await self._upload_post_image(page, image_path)
@@ -402,7 +401,7 @@ class PatchrightBrowserAdapter(BrowserPort):
                 'div[contenteditable="true"][role="textbox"]:visible, '
                 'div[contenteditable="true"][data-placeholder]:visible'
             ).first
-            
+
             await editor.click(timeout=10000)
             # Use insert_text to handle technical characters and preserve formatting
             await page.keyboard.insert_text(content)
@@ -431,8 +430,8 @@ class PatchrightBrowserAdapter(BrowserPort):
             # Wait for dialog to disappear or success toast
             # Increased timeout as image posts take longer to process/submit
             await page.wait_for_selector(
-                'div.artdeco-modal, div.share-box-v2__modal, div[role="dialog"]', 
-                state='hidden', 
+                'div.artdeco-modal, div.share-box-v2__modal, div[role="dialog"]',
+                state='hidden',
                 timeout=30000
             )
             logger.info("Successfully created LinkedIn post.")
@@ -440,16 +439,18 @@ class PatchrightBrowserAdapter(BrowserPort):
             raise
         except Exception as e:
             logger.error("Failed to create post: %s", e)
-            # PROACTIVE DIAGNOSTIC: Capture screenshot and HTML on failure
-            try:
-                debug_path = "debug_post_failure.png"
-                await page.screenshot(path=debug_path)
-                logger.info("Failure screenshot captured to: %s", debug_path)
-                with open("debug_post_failure.html", "w", encoding="utf-8") as f:
-                    f.write(await page.content())
-            except Exception as capture_e:
-                logger.warning("Failed to capture diagnostic info: %s", capture_e)
-                
+            # PROACTIVE DIAGNOSTIC: Capture screenshot and HTML on failure ONLY if debug is enabled
+            # This prevents leaking PII for standard users.
+            if getattr(self._config, "debug", False):
+                try:
+                    debug_path = "debug_post_failure.png"
+                    await page.screenshot(path=debug_path)
+                    logger.info("Failure screenshot captured to: %s", debug_path)
+                    with open("debug_post_failure.html", "w", encoding="utf-8") as f:
+                        f.write(await page.content())
+                except Exception as capture_e:
+                    logger.warning("Failed to capture diagnostic info: %s", capture_e)
+
             raise ScrapingError(
                 f"Failed to create post. UI might have changed: {e}"
             ) from e
@@ -498,7 +499,7 @@ class PatchrightBrowserAdapter(BrowserPort):
             'button.share-media-editor__next-button:visible, '
             'button.share-media-editor__done-button:visible'
         ).first
-        
+
         if await finish_btn.is_visible(timeout=5000):
             logger.info("Clicking Next/Done in media editor...")
             await finish_btn.click()
@@ -513,33 +514,33 @@ class PatchrightBrowserAdapter(BrowserPort):
         page = await self._ensure_browser()
         await self.navigate(f"https://www.linkedin.com/jobs/view/{job_id}/")
         await self._detect_rate_limit(page)
-        
+
         try:
             # Check for Easy Apply button
             apply_btn = page.locator('button.jobs-apply-button')
-            
+
             if not await apply_btn.is_visible(timeout=5000):
                 logger.warning("No Easy Apply button found for job %s", job_id)
                 return False
-                
+
             btn_text = await apply_btn.inner_text()
             if "Easy Apply" not in btn_text:
                 logger.warning("Job %s uses external apply: %s", job_id, btn_text)
                 return False
-                
+
             await apply_btn.click()
             await page.wait_for_selector('div[role="dialog"]', timeout=10000)
-            
+
             # Iterate through the Easy Apply steps
             for _ in range(10):
                 # Try to find the primary button in the footer
                 next_btn = page.locator('div[role="dialog"] footer button.artdeco-button--primary')
                 if not await next_btn.is_visible(timeout=5000):
                     break
-                    
+
                 text = await next_btn.inner_text()
                 text = text.strip()
-                
+
                 if text == "Submit application":
                     await next_btn.click()
                     await page.wait_for_selector('div[role="dialog"]', state='hidden', timeout=10000)
@@ -553,7 +554,7 @@ class PatchrightBrowserAdapter(BrowserPort):
                     await next_btn.click()
                     await asyncio.sleep(2)  # Wait for transition
                     content_after = await page.locator('div[role="dialog"]').inner_html()
-                    
+
                     if content_before == content_after:
                         # Error messages likely appeared
                         if await page.locator('.artdeco-inline-feedback--error').count() > 0:
@@ -569,7 +570,7 @@ class PatchrightBrowserAdapter(BrowserPort):
                 else:
                     logger.warning("Unknown primary button text: %s", text)
                     break
-                    
+
             return False
         except Exception as e:
             logger.error("Error during Easy Apply for job %s: %s", job_id, e)
@@ -583,7 +584,7 @@ class PatchrightBrowserAdapter(BrowserPort):
 
         # LinkedInBot sample user agent
         ua = "LinkedInBot/1.0 (compatible; Mozilla/5.0; Apache-HttpClient +http://www.linkedin.com)"
-        
+
         request_context = await self._playwright.request.new_context(user_agent=ua)
         try:
             # Check for localhost/internal URLs
@@ -599,7 +600,7 @@ class PatchrightBrowserAdapter(BrowserPort):
             response = await request_context.get(url, timeout=10000)
             status = response.status
             body = await response.text()
-            
+
             # Simple metadata detection
             lowered_body = body.lower()
             og_tags = {
@@ -608,10 +609,10 @@ class PatchrightBrowserAdapter(BrowserPort):
                 "image": 'property="og:image"' in lowered_body or "property='og:image'" in lowered_body,
                 "url": 'property="og:url"' in lowered_body or "property='og:url'" in lowered_body,
             }
-            
+
             # Bot blocking detection (Cloudflare, etc often return 403/401)
             is_blocked = status in (401, 403, 429) or "cloudflare" in lowered_body
-            
+
             return {
                 "ok": response.ok and not is_blocked,
                 "status": status,

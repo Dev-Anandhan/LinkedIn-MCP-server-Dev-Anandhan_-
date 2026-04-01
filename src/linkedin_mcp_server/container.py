@@ -6,6 +6,8 @@ and use cases are assembled. Only this file imports concrete adapter classes.
 
 from linkedin_mcp_server.adapters.driven.patchright_browser import PatchrightBrowserAdapter
 from linkedin_mcp_server.adapters.driven.profile_auth import ProfileAuthAdapter
+from linkedin_mcp_server.application.apply_job import ApplyJobUseCase
+from linkedin_mcp_server.application.diagnose_link import DiagnoseLinkUseCase
 from linkedin_mcp_server.application.manage_session import ManageSessionUseCase
 from linkedin_mcp_server.application.scrape_company import ScrapeCompanyUseCase
 from linkedin_mcp_server.application.scrape_job import ScrapeJobUseCase
@@ -13,8 +15,6 @@ from linkedin_mcp_server.application.scrape_person import ScrapePersonUseCase
 from linkedin_mcp_server.application.search_jobs import SearchJobsUseCase
 from linkedin_mcp_server.application.search_people import SearchPeopleUseCase
 from linkedin_mcp_server.application.share_post import SharePostUseCase
-from linkedin_mcp_server.application.apply_job import ApplyJobUseCase
-from linkedin_mcp_server.application.diagnose_link import DiagnoseLinkUseCase
 from linkedin_mcp_server.domain.value_objects import AppConfig
 from linkedin_mcp_server.ports.auth import AuthPort
 from linkedin_mcp_server.ports.browser import BrowserPort

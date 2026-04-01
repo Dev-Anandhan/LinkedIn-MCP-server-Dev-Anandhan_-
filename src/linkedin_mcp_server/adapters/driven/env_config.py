@@ -54,6 +54,7 @@ class EnvConfigAdapter(ConfigPort):
             user_data_dir=os.environ.get(
                 "LINKEDIN_USER_DATA_DIR", "~/.linkedin-mcp-server/browser-data"
             ),
+            debug=self._get_bool("LINKEDIN_DEBUG", False),
         )
 
         # Determine transport from CLI or env
