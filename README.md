@@ -64,8 +64,8 @@ To generate viral, high-engagement posts, simply prompt Claude with your desired
 > "Claude, generate a high engagement LinkedIn post about how I failed my first MCP server project. Use the 'LoRA + API synthetic pairs' viral template and include relevant hashtags. Once you generate it, use the `share_post` tool to publish it."
 
 ### Error Handling
+All tools utilize a robust, structured JSON error schema. If an error occurs (e.g., session expired, rate limit hit), the server returns a detailed message that MCP clients like Claude can easily interpret:
 
-All tools utilize a strict JSON error schema to ensure the LLM handles failures gracefully:
 ```json
 {
   "error": "RATE_LIMIT_EXCEEDED",
